@@ -1,0 +1,190 @@
+import random
+import time
+import hashlib
+
+# Base class for all Locker types
+class Locker:
+    def __init__(self, locker_id, size, rental_fee):
+        self.locker_id = locker_id
+        self.size = size
+        self.status = "Available"
+        self.user = None
+        self.pin = None
+        self.rental_time = None
+        self.payment_due = rental_fee
+
+    def allocate(self, user_id, pin):
+        self.status = "Occupied"
+        self.user = user_id
+        self.pin = hashlib.sha256(pin.encode()).hexdigest()
+        self.rental_time = time.time()
+
+    def release(self, pin):
+        if self.pin == hashlib.sha256(pin.encode()).hexdigest():
+            self.status = "Available"
+            self.user = None
+            self.pin = None
+            self.rental_time = None
+            return True
+        return False
+
+    def check_availability(self):
+        return self.status == "Available"
+
+    def get_payment_due(self):
+        return self.payment_due
+
+    def _str_(self):
+        return f"Locker ID: {self.locker_id}, Size: {self.size}, Status: {self.status}"
+
+# Subclasses for specific locker types
+class SmallLocker(Locker):
+    def __init__(self, locker_id):
+        super().__init__(locker_id, "Small", 5)
+
+class MediumLocker(Locker):
+    def __init__(self, locker_id):
+        super().__init__(locker_id, "Medium", 10)
+
+class LargeLocker(Locker):
+    def __init__(self, locker_id):
+        super().__init__(locker_id, "Large", 15)
+
+# User class
+class User:
+    def __init__(self, name, passport):
+        self.name = name
+        self.passport = passport
+        self.user_id = random.randint(1000, 9999)
+
+    def _str_(self):
+        return f"User ID: {self.user_id}, Name: {self.name}"
+
+# Airport Locker System (Encapsulates the entire system)
+class AirportLockerSystem:
+    def __init__(self):
+        self.lockers = {
+            101: SmallLocker(101),
+            102: MediumLocker(102),
+            103: LargeLocker(103),
+            104: LargeLocker(104)
+        }
+        self.users = {}
+
+    def register_user(self):
+        """Registers a new user and returns the user ID"""
+        name = input("Enter your name: ")
+        passport = input("Enter passport number: ")
+        user = User(name, passport)
+        self.users[user.user_id] = user
+        print(f"User registered successfully! Your User ID is {user.user_id}")
+        return user.user_id
+
+    def check_locker_availability(self):
+        """Check available lockers"""
+        available_lockers = [locker for locker in self.lockers.values() if locker.check_availability()]
+        if available_lockers:
+            print("Available Lockers:")
+            for locker in available_lockers:
+                print(f"Locker ID: {locker.locker_id}, Size: {locker.size}, Price: ${locker.payment_due}")
+            return available_lockers
+        else:
+            print("No lockers available at the moment.")
+            return []
+
+    def allocate_locker(self, user_id):
+        """Allocate a locker to the user"""
+        available_lockers = self.check_locker_availability()
+        if not available_lockers:
+            return None
+        print("Choose a locker size:")
+        print("1. Small ($5)")
+        print("2. Medium ($10)")
+        print("3. Large ($15)")
+        choice = input("Enter your choice (1/2/3): ")
+        if choice == "1":
+            locker_choice = [locker for locker in available_lockers if locker.size == "Small"][0]
+            payment_due = 5
+        elif choice == "2":
+            locker_choice = [locker for locker in available_lockers if locker.size == "Medium"][0]
+            payment_due = 10
+        elif choice == "3":
+            locker_choice = [locker for locker in available_lockers if locker.size == "Large"][0]
+            payment_due = 15
+        else:
+            print("Invalid choice.")
+            return None
+        pin = input("Create a PIN: ")
+        while len(pin) < 4:
+            print("PIN must be at least 4 characters long.")
+            pin = input("Create a PIN: ")
+        locker_choice.allocate(user_id, pin)
+        locker_choice.payment_due = payment_due
+        print(f"Locker {locker_choice.locker_id} assigned! Your access PIN: {pin}")
+        print(f"Total amount due: ${payment_due:.2f}")
+        return locker_choice.locker_id
+
+    def access_locker(self):
+        """Allow the user to access their assigned locker"""
+        locker_id = int(input("Enter your locker ID: "))
+        if locker_id not in self.lockers:
+            print("Invalid locker ID.")
+            return
+        pin = input("Enter your access PIN: ")
+        if self.lockers[locker_id].pin == hashlib.sha256(pin.encode()).hexdigest():
+            print(f"Locker {locker_id} opened successfully!")
+        else:
+            print("Incorrect PIN. Access denied.")
+
+    def release_locker(self):
+        """Release a locker and process payment"""
+        locker_id = int(input("Enter your locker ID: "))
+        if locker_id not in self.lockers or self.lockers[locker_id].status == "Available":
+            print("Invalid locker or already released.")
+            return
+        print("Enter your access PIN:")
+        pin = input()
+        if self.lockers[locker_id].release(pin):
+            print(f"Locker {locker_id} is released.")
+            payment_due = self.lockers[locker_id].payment_due
+            print(f"Total amount due: ${payment_due:.2f}")
+            payment = float(input("Enter payment amount: "))
+            if payment >= payment_due:
+                print("Payment successful. Thank you!")
+                self.lockers[locker_id].payment_due = 0
+            else:
+                print("Insufficient payment. Locker remains locked.")
+        else:
+            print("Incorrect PIN. Access denied.")
+
+    def main(self):
+        """Main program loop"""
+        while True:
+            print("\n--- Airport Locker Management ---")
+            print("1. Register")
+            print("2. Check Locker Availability")
+            print("3. Allocate Locker")
+            print("4. Access Locker")
+            print("5. Release Locker")
+            print("6. Exit")
+            choice = input("Enter your choice: ")
+            if choice == "1":
+                self.register_user()
+            elif choice == "2":
+                self.check_locker_availability()
+            elif choice == "3":
+                user_id = self.register_user()
+                self.allocate_locker(user_id)
+            elif choice == "4":
+                self.access_locker()
+            elif choice == "5":
+                self.release_locker()
+            elif choice == "6":
+                print("Exiting program. Goodbye!")
+                break
+            else:
+                print("Invalid choice. Please try again.")
+
+if __name__ == "__main__":
+    system = AirportLockerSystem()
+    system.main()
